@@ -1,0 +1,26 @@
+digraph G
+{
+//node [color=white, fontcolor=white];
+//edge [color=white, fontcolor=white];
+//graph [color=white, fontcolor=white];
+StopMode;
+IDLE;
+INCOMING_CALL;
+subgraph cluster_lifted
+{
+label="handset lifted";
+DIALTONE; ACTIVE_CALL; ERROR;
+}
+IDLE -> DIALTONE;
+IDLE -> INCOMING_CALL;
+INCOMING_CALL -> ACTIVE_CALL;
+IDLE -> ACTIVE_CALL [label="externally initiated call"];
+IDLE -> ERROR [label="BT not connected"];
+ERROR -> IDLE;
+DIALTONE -> IDLE;
+DIALTONE -> ACTIVE_CALL [label="dialling"];
+ACTIVE_CALL -> IDLE;
+IDLE -> StopMode;
+StopMode -> IDLE;
+}
+
