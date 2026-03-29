@@ -72,6 +72,8 @@ void Error_Handler(void);
 #define Dialtone_VDIV_GPIO_Port GPIOA
 #define VOICE_EN_Pin GPIO_PIN_2
 #define VOICE_EN_GPIO_Port GPIOB
+#define LED_Pin GPIO_PIN_12
+#define LED_GPIO_Port GPIOB
 #define HV_EN_Pin GPIO_PIN_13
 #define HV_EN_GPIO_Port GPIOB
 #define PGOOD_Pin GPIO_PIN_14
