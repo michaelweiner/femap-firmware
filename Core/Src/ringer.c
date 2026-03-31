@@ -276,12 +276,16 @@ const uint16_t pwm_25hz_neg[] = {
     3,   2,   1,   0,   0};
 
 static TIM_HandleTypeDef *s_htim_dutycycle = NULL, *s_htim_pmos = NULL, *s_htim_nmos = NULL;
+static TIM_TypeDef *s_tim_dutycycle = NULL, *s_tim_pmos = NULL, *s_tim_nmos = NULL;
 
 void init_bell(TIM_HandleTypeDef *htim_dutycycle, TIM_HandleTypeDef *htim_pmos, TIM_HandleTypeDef *htim_nmos)
 {
 	s_htim_dutycycle = htim_dutycycle;
+	s_tim_dutycycle  = htim_dutycycle->Instance;
 	s_htim_pmos = htim_pmos;
+	s_tim_pmos  = htim_pmos->Instance;
 	s_htim_nmos = htim_nmos;
+	s_tim_nmos  = htim_nmos->Instance;
 }
 
 
@@ -301,42 +305,42 @@ void start_bell()
   }
   HAL_Delay(10);
   HAL_TIM_PWM_Start(s_htim_dutycycle, TIM_CHANNEL_1);
-  s_htim_dutycycle->Instance->CR1 &= ~TIM_CR1_CEN;
-  s_htim_dutycycle->Instance->CNT = s_htim_dutycycle->Instance->ARR-1;
+  s_tim_dutycycle->CR1 &= ~TIM_CR1_CEN;
+  s_tim_dutycycle->CNT = s_tim_dutycycle->ARR-1;
 
   HAL_TIM_PWM_Start(s_htim_pmos, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(s_htim_pmos, TIM_CHANNEL_3);
-  s_htim_pmos->Instance->CR1 &= ~TIM_CR1_CEN;
-  s_htim_pmos->Instance->CNT = s_htim_pmos->Instance->ARR-19;
-  s_htim_pmos->Instance->CCER |= TIM_CCER_CC1NE | TIM_CCER_CC3NE;
-  s_htim_pmos->Instance->CR1 |= TIM_CR1_CEN;
+  s_tim_pmos->CR1 &= ~TIM_CR1_CEN;
+  s_tim_pmos->CNT = s_tim_pmos->ARR-19;
+  s_tim_pmos->CCER |= TIM_CCER_CC1NE | TIM_CCER_CC3NE;
+  s_tim_pmos->CR1 |= TIM_CR1_CEN;
 
-  s_htim_nmos->Instance->CCR1 = 0;
-  s_htim_nmos->Instance->CCR3 = 0;
-  s_htim_nmos->Instance->EGR = TIM_EGR_UG;
+  s_tim_nmos->CCR1 = 0;
+  s_tim_nmos->CCR3 = 0;
+  s_tim_nmos->EGR = TIM_EGR_UG;
   HAL_TIM_PWM_Start_DMA(s_htim_nmos, TIM_CHANNEL_1, (uint32_t*)pwm_25hz_pos, sizeof(pwm_25hz_pos)/sizeof(pwm_25hz_pos[0]));
   HAL_TIM_PWM_Start_DMA(s_htim_nmos, TIM_CHANNEL_3, (uint32_t*)pwm_25hz_neg, sizeof(pwm_25hz_neg)/sizeof(pwm_25hz_neg[0]));
   
   HAL_Delay(1);
 
-  s_htim_dutycycle->Instance->CR1 |= TIM_CR1_CEN;
+  s_tim_dutycycle->CR1 |= TIM_CR1_CEN;
 }
 
 void stop_bell()
 {
-    s_htim_pmos->Instance->CCER &= ~(TIM_CCER_CC1NE | TIM_CCER_CC3NE);
-    s_htim_nmos->Instance->CCER &= ~(TIM_CCER_CC1E | TIM_CCER_CC3E);
+    s_tim_pmos->CCER &= ~(TIM_CCER_CC1NE | TIM_CCER_CC3NE);
+    s_tim_nmos->CCER &= ~(TIM_CCER_CC1E | TIM_CCER_CC3E);
 
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_RESET);
-    s_htim_dutycycle->Instance->CR1 &= ~TIM_CR1_CEN;
+    s_tim_dutycycle->CR1 &= ~TIM_CR1_CEN;
     HAL_TIM_PWM_Stop(s_htim_dutycycle, TIM_CHANNEL_1);
-    s_htim_dutycycle->Instance->CNT = 0;
+    s_tim_dutycycle->CNT = 0;
 
     HAL_TIM_PWM_Stop(s_htim_pmos, TIM_CHANNEL_1);
     HAL_TIM_PWM_Stop(s_htim_pmos, TIM_CHANNEL_3);
-    s_htim_pmos->Instance->CNT = 0;
+    s_tim_pmos->CNT = 0;
 
     HAL_TIM_PWM_Stop_DMA(s_htim_nmos, TIM_CHANNEL_1);
     HAL_TIM_PWM_Stop_DMA(s_htim_nmos, TIM_CHANNEL_3);
-    s_htim_nmos->Instance->CNT = 0;
+    s_tim_nmos->CNT = 0;
 }
