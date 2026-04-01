@@ -121,7 +121,7 @@ void start_dialtone(enum dialtone_t type)
   HAL_TIM_PWM_Start(s_htim_dac, TIM_CHANNEL_1);
   HAL_DAC_Start_DMA(s_hdac, DAC_CHANNEL_1, (uint32_t*)samples_dialtone, sizeof(samples_dialtone)/sizeof(samples_dialtone[0]), DAC_ALIGN_12B_R);
   HAL_Delay(5);
-  s_htim_dac->Instance->CR1 |= TIM_CR1_CEN;
+  s_htim_dutycycle->Instance->CR1 |= TIM_CR1_CEN;
   HAL_OPAMP_Start(s_hopamp);
 }
 
