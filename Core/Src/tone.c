@@ -111,7 +111,8 @@ void start_dialtone(enum dialtone_t type)
       s_htim_dutycycle->Instance->CCR1 = 239;
       break;
     default:
-      // TODO
+      HAL_TIM_PWM_Stop(s_htim_dutycycle, TIM_CHANNEL_1);
+      return;
   }
 
   s_htim_dutycycle->Instance->CR1 &= ~TIM_CR1_CEN;
