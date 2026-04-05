@@ -3,7 +3,8 @@
 #define VOICE_EN_Pin GPIO_PIN_2
 #define VOICE_EN_GPIO_Port GPIOB
 
-// samples generated with ./pwm_sine.py -p 400e3 425 -w 4096 --plot -c -nt --scale 0.3
+// samples generated with:
+// ./pwm_sine.py -p 400e3 425 -w 4096 --plot -c -nt --scale 0.3
 const uint16_t samples_dialtone[] = {
     2048, 2056, 2064, 2072, 2080, 2089, 2097, 2105, 2113, 2121, 2129, 2138,
     2146, 2154, 2162, 2170, 2179, 2187, 2195, 2203, 2211, 2219, 2227, 2235,
@@ -89,7 +90,9 @@ static TIM_HandleTypeDef *s_htim_dutycycle = NULL, *s_htim_dac = NULL;
 static DAC_HandleTypeDef *s_hdac = NULL;
 static OPAMP_HandleTypeDef *s_hopamp = NULL;
 
-void init_dialtone(TIM_HandleTypeDef *htim_dutycycle, TIM_HandleTypeDef *htim_dac, DAC_HandleTypeDef *hdac, OPAMP_HandleTypeDef *hopamp)
+void init_dialtone(TIM_HandleTypeDef *htim_dutycycle,
+                   TIM_HandleTypeDef *htim_dac, DAC_HandleTypeDef *hdac,
+                   OPAMP_HandleTypeDef *hopamp)
 {
     s_htim_dutycycle = htim_dutycycle;
     s_htim_dac = htim_dac;
@@ -99,38 +102,39 @@ void init_dialtone(TIM_HandleTypeDef *htim_dutycycle, TIM_HandleTypeDef *htim_da
 
 void start_dialtone(enum dialtone_t type)
 {
-  HAL_TIM_PWM_Start(s_htim_dutycycle, TIM_CHANNEL_1);
-  switch(type)
-  {
+    HAL_TIM_PWM_Start(s_htim_dutycycle, TIM_CHANNEL_1);
+    switch (type)
+    {
     case DIALTONE_DEFAULT:
-      s_htim_dutycycle->Instance->ARR = 1;
-      s_htim_dutycycle->Instance->CCR1 = 2;
-      break;
+        s_htim_dutycycle->Instance->ARR = 1;
+        s_htim_dutycycle->Instance->CCR1 = 2;
+        break;
     case DIALTONE_GASSENBESETZTTON:
-      s_htim_dutycycle->Instance->ARR = 479;
-      s_htim_dutycycle->Instance->CCR1 = 239;
-      break;
+        s_htim_dutycycle->Instance->ARR = 479;
+        s_htim_dutycycle->Instance->CCR1 = 239;
+        break;
     default:
-      HAL_TIM_PWM_Stop(s_htim_dutycycle, TIM_CHANNEL_1);
-      return;
-  }
+        HAL_TIM_PWM_Stop(s_htim_dutycycle, TIM_CHANNEL_1);
+        return;
+    }
 
-  s_htim_dutycycle->Instance->CR1 &= ~TIM_CR1_CEN;
-  s_htim_dutycycle->Instance->CNT = s_htim_dutycycle->Instance->ARR-1;
-  HAL_GPIO_WritePin(VOICE_EN_GPIO_Port, VOICE_EN_Pin, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
-  HAL_TIM_PWM_Start(s_htim_dac, TIM_CHANNEL_1);
-  HAL_DAC_Start_DMA(s_hdac, DAC_CHANNEL_1, (uint32_t*)samples_dialtone, sizeof(samples_dialtone)/sizeof(samples_dialtone[0]), DAC_ALIGN_12B_R);
-  HAL_Delay(5);
-  s_htim_dutycycle->Instance->CR1 |= TIM_CR1_CEN;
-  HAL_OPAMP_Start(s_hopamp);
+    s_htim_dutycycle->Instance->CR1 &= ~TIM_CR1_CEN;
+    s_htim_dutycycle->Instance->CNT = s_htim_dutycycle->Instance->ARR - 1;
+    HAL_GPIO_WritePin(VOICE_EN_GPIO_Port, VOICE_EN_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
+    HAL_TIM_PWM_Start(s_htim_dac, TIM_CHANNEL_1);
+    HAL_DAC_Start_DMA(s_hdac, DAC_CHANNEL_1, (uint32_t *)samples_dialtone,
+                      sizeof(samples_dialtone) / sizeof(samples_dialtone[0]),
+                      DAC_ALIGN_12B_R);
+    HAL_Delay(5);
+    s_htim_dutycycle->Instance->CR1 |= TIM_CR1_CEN;
+    HAL_OPAMP_Start(s_hopamp);
 }
 
 void stop_dialtone()
 {
-  HAL_OPAMP_Stop(s_hopamp);
-  HAL_DAC_Stop_DMA(s_hdac, DAC_CHANNEL_1);
-  HAL_TIM_PWM_Stop(s_htim_dac, TIM_CHANNEL_1);
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
+    HAL_OPAMP_Stop(s_hopamp);
+    HAL_DAC_Stop_DMA(s_hdac, DAC_CHANNEL_1);
+    HAL_TIM_PWM_Stop(s_htim_dac, TIM_CHANNEL_1);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
 }
-
