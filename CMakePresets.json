@@ -23,6 +23,10 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
             }
+        },
+        {
+            "name": "format",
+            "binaryDir": "${sourceDir}/build"
         }
     ],
     "buildPresets": [
@@ -33,6 +37,11 @@
         {
             "name": "Release",
             "configurePreset": "Release"
+        },
+        {
+            "name": "format",
+            "configurePreset": "format",
+            "targets": ["format"]
         }
     ]
 }

@@ -12,6 +12,15 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
 
+set(USER_SOURCES
+    Core/Src/ringer.c
+    Core/Src/tone.c
+)
+
+set(USER_HEADERS
+    Core/Inc/ringer.h
+    Core/Inc/tone.h
+)
 
 # Define the build type
 if(NOT CMAKE_BUILD_TYPE)
@@ -45,8 +54,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
-    Core/Src/ringer.c
-    Core/Src/tone.c
+    ${USER_SOURCES}
 )
 
 # Add include paths
@@ -68,3 +76,25 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 
     # Add user defined libraries
 )
+
+# Find the clang-format executable
+find_program(CLANG_FORMAT_EXE clang-format)
+
+# Check if it was found
+if(CLANG_FORMAT_EXE)
+  message(STATUS "Found clang-format at ${CLANG_FORMAT_EXE}")
+else()
+  message(WARNING "clang-format not found")
+endif()
+
+if(CLANG_FORMAT_EXE)
+  add_custom_target(format
+    COMMENT "Formatting files with clang-format..."
+    COMMAND ${CLANG_FORMAT_EXE} -i ${USER_SOURCES} ${USER_HEADERS}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  )
+  message(STATUS "Added 'format' target")
+else()
+  message(WARNING
+    "clang-format not found - format target unavailable")
+endif()
