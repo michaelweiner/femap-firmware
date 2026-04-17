@@ -146,7 +146,7 @@ int main(void)
   uart_debug_init(&huart2, &hlpuart1);
 
   // TODO: print version number instead of 'hello world'
-  puts("Hallo Welt\n");
+  puts("Hallo Welt");
 
   /*
    * TIM1: PWM samples for NMOS (lower part of H bridge)
@@ -167,12 +167,12 @@ int main(void)
 
   HAL_I2C_Master_Transmit(&hi2c2, 0x03f<<1, (uint8_t*)"\x00", 1, 1000);
   HAL_I2C_Master_Receive(&hi2c2, 0x3f<<1, i2c_buffer, MP2722_REGISTERS, 1000);
-  puts("i2c=");
+  iprintf("i2c=");
   for(size_t i=0; i<MP2722_REGISTERS; ++i)
   {
-    printf("%02x", i2c_buffer[i]);
+    iprintf("%02x", i2c_buffer[i]);
   }
-  puts("\n");
+  iprintf("\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -234,8 +234,8 @@ int main(void)
 
         read_rotary(number, &num_len);
         count_to_ascii(number, num_len);
-        HAL_UART_Transmit(&huart2, number, num_len, 100);
-        sprintf(command, "AT+HFPDIAL=%s\r\n", number);
+        iprintf("dialed=%s\n", number);
+        siprintf(command, "AT+HFPDIAL=%s\r\n", number);
         /* check again if Gabelumschalter is still active */
         pin_gu = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_3);
         if(pin_gu == GPIO_PIN_SET && num_len > 0)
@@ -291,7 +291,7 @@ int main(void)
     }
     if(old_phone_state != phone_state)
     {
-      printf("state=%u\n", phone_state);
+      iprintf("state=%u\n", phone_state);
     }
 
     if((phone_state == PHONE_IDLE) && bt_hfp_uart_done() && uart_debug_tx_done() &&

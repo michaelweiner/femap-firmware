@@ -128,7 +128,7 @@ void bt_hfp_process(void)
     size_t response_len =
         strcpy_v(uart_response_nv, uart_response, UART_BUFFER_SIZE);
     response_len = (response_len < UART_BUFFER_SIZE) ? response_len : 0;
-    printf("recv='%s' (%u)\n", uart_response_nv, response_len);
+    iprintf("recv='%s' (%u)\n", uart_response_nv, response_len);
 
     if ((response_len > 9) && (!memcmp(uart_response_nv, "+HFPSTAT=", 9)))
     {
@@ -144,7 +144,7 @@ void bt_hfp_process(void)
             audio_changed = 1;
         }
     }
-    printf("s=%u,a=%u\r\n", hfpstat, hfpaudio);
+    iprintf("s=%u,a=%u\r\n", hfpstat, hfpaudio);
 }
 
 int bt_hfp_uart_done(void)
