@@ -16,12 +16,16 @@ set(USER_SOURCES
     Core/Src/ringer.c
     Core/Src/tone.c
     Core/Src/rotary.c
+    Core/Src/uart_debug.c
+    Core/Src/bt_hfp.c
 )
 
 set(USER_HEADERS
     Core/Inc/ringer.h
     Core/Inc/tone.h
     Core/Inc/rotary.h
+    Core/Inc/uart_debug.h
+    Core/Inc/bt_hfp.h
 )
 
 # Define the build type

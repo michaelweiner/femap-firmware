@@ -23,7 +23,6 @@
 /* USER CODE BEGIN Includes */
 #include <string.h>
 #include <stdio.h>
-#include <stdlib.h>
 
 #include "stm32l4xx_ll_tim.h"
 #include "stm32l4xx_hal_tim.h"
@@ -31,6 +30,8 @@
 #include "ringer.h"
 #include "tone.h"
 #include "rotary.h"
+#include "uart_debug.h"
+#include "bt_hfp.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -70,36 +71,12 @@ DMA_HandleTypeDef hdma_tim1_ch3;
 
 /* USER CODE BEGIN PV */
 
-
 #define MP2722_REGISTERS 23
 uint8_t i2c_buffer[MP2722_REGISTERS];
 
-#define UART_BUFFER_SIZE 256
-volatile uint8_t uart_buffer[UART_BUFFER_SIZE];
-volatile uint8_t uart_response[UART_BUFFER_SIZE];
-volatile uint8_t uart_response_ready = 0;
-volatile size_t uart_buffer_pos = 0;
-uint8_t dummy_buffer[10];
-uint8_t uart_response_nv[UART_BUFFER_SIZE];
-
-struct uart_debug_fifo
-{
-  UART_HandleTypeDef *huart;
-  uint8_t ringbuffer[100];
-  size_t inpos;
-  size_t outpos;
-};
-
-struct uart_debug_fifo uart_debug_from_bt = { &huart2, {0}, 0, 0 };
-struct uart_debug_fifo uart_debug_to_bt = { &hlpuart1, {0}, 0, 0 };
-
-enum hfpstat_t { HFPSTAT_UNSUPPORTED=0, HFPSTAT_STANDBY=1, HFPSTAT_CONNECTING=2, HFPSTAT_CONNECTED=3, HFPSTAT_OUTGOING_CALL=4, HFPSTAT_INCOMING_CALL=5, HFPSTAT_ACTIVE_CALL=6 };
-enum hfpaudio_t { HFPAUDIO_DISCONNECTED=0, HFPAUDIO_CONNECTED=1 };
 enum phone_state_t { PHONE_IDLE, PHONE_DIALTONE, PHONE_ACTIVE_CALL, PHONE_INCOMING_CALL, PHONE_ERROR };
 
-enum hfpstat_t hfpstat = HFPSTAT_UNSUPPORTED;
-enum hfpaudio_t hfpaudio = HFPAUDIO_DISCONNECTED, hfpaudio_old = HFPAUDIO_DISCONNECTED;
-enum phone_state_t phone_state = PHONE_IDLE;  
+enum phone_state_t phone_state = PHONE_IDLE;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -118,163 +95,10 @@ static void MX_TIM15_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_I2C2_Init(void);
 /* USER CODE BEGIN PFP */
-void UART_RxISR_AT(UART_HandleTypeDef *huart);
-void UART_TxISR_Relay(UART_HandleTypeDef *huart);
-void UART_RxISR_Relay(UART_HandleTypeDef *huart);
-void UART_enqueue_char(struct uart_debug_fifo *fifo, uint8_t c);
-int uart_done(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-int uart_done(void)
-{
-    return (uart_response_ready == 0) &&
-           !HAL_IS_BIT_SET(uart_debug_from_bt.huart->Instance->CR1, USART_CR1_TXEIE) &&
-           HAL_IS_BIT_SET(uart_debug_from_bt.huart->Instance->ISR, USART_ISR_TC);
-}
-
-int __io_putchar(int ch) {
-      HAL_NVIC_DisableIRQ(LPUART1_IRQn);
-      UART_enqueue_char(&uart_debug_from_bt, ch & 0xff);
-      HAL_NVIC_EnableIRQ(LPUART1_IRQn);
-      return ch;
-}
-
-size_t strcpy_v(uint8_t* psz_dest, const volatile uint8_t* psz_src, size_t max)
-{
-    size_t ui=0;
-    while(ui<max)
-    {
-        psz_dest[ui] = psz_src[ui];
-        if(psz_src[ui] == '\0')
-        {
-            break;
-        }
-        ++ui;
-    }
-    if(ui == max)
-    {
-        psz_dest[0] = '\0';
-        ui = 0;
-    }
-    return ui;
-}
-
-
-void init_bluetooth()
-{
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_RESET);
-  HAL_Delay(2000);
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET);
-  HAL_Delay(2000);
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_SET);
-  HAL_Delay(2000);
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_RESET);
-  HAL_Delay(200);
-
-  HAL_UART_Receive_IT(&hlpuart1, dummy_buffer, sizeof(dummy_buffer));
-  hlpuart1.RxISR = UART_RxISR_AT;
-
-  while(uart_response_ready == 1);
-  uart_response_ready = 0;
-}
-
-void UART_RxISR_AT(UART_HandleTypeDef *huart)
-{
-  uint16_t  uhdata;
-  uint8_t uart_byte;
-
-  uhdata = (uint16_t) READ_REG(huart->Instance->RDR);
-  uart_byte = (uint8_t)(uhdata & 0xff);
-  //UART_enqueue_char(&uart_debug_from_bt, uart_byte);
-
-  if(uart_byte == '\r')
-  {
-    /* do nothing */
-  }
-  else if(uart_byte == '\n')
-  {
-    if(uart_buffer_pos > 0)
-    {
-      for(size_t i=0; i<uart_buffer_pos; ++i)
-      {
-        uart_response[i] = uart_buffer[i];
-      }
-      uart_response[uart_buffer_pos] = '\0';
-      uart_response_ready = 1;
-    }
-    uart_buffer_pos = 0;
-  }
-  else if(uart_buffer_pos < sizeof(uart_buffer))
-  {
-    uart_buffer[uart_buffer_pos++] = uart_byte;
-  }
-  else /* overflow, disable interrupt */
-  {
-    ATOMIC_CLEAR_BIT(huart->Instance->CR1, (USART_CR1_RXNEIE | USART_CR1_PEIE));
-  }
-}
-
-void UART_RxISR_Relay(UART_HandleTypeDef *huart)
-{
-  uint16_t  uhdata;
-  static uint8_t uart_byte = 0;
-
-  uhdata = (uint16_t) READ_REG(huart->Instance->RDR);
-  uart_byte = (uint8_t)(uhdata & 0xff);
-
-  UART_enqueue_char(&uart_debug_to_bt, uart_byte);
-}
-
-void UART_TxISR_Relay(UART_HandleTypeDef *huart)
-{
-  struct uart_debug_fifo *fifo = NULL;
-  if(huart == uart_debug_from_bt.huart)
-  {
-    fifo = &uart_debug_from_bt;
-  }
-  else if(huart == uart_debug_to_bt.huart)
-  {
-    fifo = &uart_debug_to_bt;
-  }
-
-  if((fifo == NULL) || (fifo->inpos == fifo->outpos))
-  {
-    /* first part of OR: unknown UART (bad);
-     * second part of OR: no more data to transmit (good);
-     * in both cases: end transfer */  
-    ATOMIC_CLEAR_BIT(huart->Instance->CR1, USART_CR1_TXEIE);
-    ATOMIC_SET_BIT(huart->Instance->CR1, USART_CR1_TCIE);
-  }
-  else
-  {
-    huart->Instance->TDR = fifo->ringbuffer[fifo->outpos];
-    fifo->outpos++;
-    fifo->outpos %= sizeof(fifo->ringbuffer);
-  }
-}
-
-void UART_enqueue_char(struct uart_debug_fifo *fifo, uint8_t c)
-{
-  UART_HandleTypeDef *huart = fifo->huart;
-  if((fifo->outpos == fifo->inpos) && (huart->Instance->ISR & USART_ISR_TXE))
-  {
-    huart->Instance->TDR = c;
-  }
-  else
-  {
-    if(((fifo->inpos + sizeof(fifo->ringbuffer) - fifo->outpos) % sizeof(fifo->ringbuffer)) < sizeof(fifo->ringbuffer) - 1)
-    {
-      fifo->ringbuffer[fifo->inpos] = c;
-      fifo->inpos++;
-      fifo->inpos %= sizeof(fifo->ringbuffer);
-      huart->TxISR = UART_TxISR_Relay;
-      ATOMIC_SET_BIT(fifo->huart->Instance->CR1, USART_CR1_TXEIE);
-    }
-  }
-}
 /* USER CODE END 0 */
 
 /**
@@ -319,6 +143,8 @@ int main(void)
   MX_TIM3_Init();
   MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
+  uart_debug_init(&huart2, &hlpuart1);
+
   // TODO: print version number instead of 'hello world'
   puts("Hallo Welt\n");
 
@@ -336,11 +162,9 @@ int main(void)
   /* TIM15: pulse timing for rotary dial */
   init_rotary(&htim15);
 
-  HAL_UART_Receive_IT(&huart2, dummy_buffer, sizeof(dummy_buffer));
-  huart2.RxISR = UART_RxISR_Relay;
   HAL_GPIO_WritePin(VOICE_EN_GPIO_Port, VOICE_EN_Pin, GPIO_PIN_RESET);
+  bt_hfp_init(&hlpuart1, &huart2);
 
-  init_bluetooth();
   HAL_I2C_Master_Transmit(&hi2c2, 0x03f<<1, (uint8_t*)"\x00", 1, 1000);
   HAL_I2C_Master_Receive(&hi2c2, 0x3f<<1, i2c_buffer, MP2722_REGISTERS, 1000);
   puts("i2c=");
@@ -356,35 +180,19 @@ int main(void)
   while(1)
   {
     GPIO_PinState pin_gu = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_3);
-    if(uart_response_ready == 1)
-    {
-      uart_response_ready = 0;
-      size_t response_len = strcpy_v(uart_response_nv, uart_response, UART_BUFFER_SIZE);
-      response_len = (response_len < UART_BUFFER_SIZE) ? response_len : 0;
-      printf("recv='%s' (%u)\n", uart_response_nv, response_len);
-      if((response_len > 9) && (!memcmp(uart_response_nv, "+HFPSTAT=", 9)))
-      {
-        hfpstat = atoi((char*)&uart_response_nv[9]);
-      }
-      else if((response_len > 10) & (!memcmp(uart_response_nv, "+HFPAUDIO=", 10)))
-      {
-        hfpaudio_old = hfpaudio;
-        hfpaudio = atoi((char*)&uart_response_nv[10]);
-      }
-      printf("s=%u,a=%u\r\n", hfpstat, hfpaudio);
-    }
+    bt_hfp_process();
     enum phone_state_t old_phone_state = phone_state;
     switch(phone_state)
     {
     case PHONE_IDLE:
       if(pin_gu == GPIO_PIN_SET)
       {
-        if(hfpstat == HFPSTAT_CONNECTED)
+        if(bt_hfp_get_stat() == HFPSTAT_CONNECTED)
         {
           start_dialtone(DIALTONE_DEFAULT);
           phone_state = PHONE_DIALTONE;
         }
-        else if (hfpstat == HFPSTAT_OUTGOING_CALL || hfpstat == HFPSTAT_ACTIVE_CALL)
+        else if(bt_hfp_get_stat() == HFPSTAT_OUTGOING_CALL || bt_hfp_get_stat() == HFPSTAT_ACTIVE_CALL)
         {
           HAL_GPIO_WritePin(VOICE_EN_GPIO_Port, VOICE_EN_Pin, GPIO_PIN_SET);
           phone_state = PHONE_ACTIVE_CALL;
@@ -395,20 +203,17 @@ int main(void)
           phone_state = PHONE_ERROR;
         }
       }
-      else if(hfpstat == HFPSTAT_INCOMING_CALL)
+      else if(bt_hfp_get_stat() == HFPSTAT_INCOMING_CALL)
       {
         start_bell();
         phone_state = PHONE_INCOMING_CALL;
       }
       else
       {
-        if ((hfpaudio == HFPAUDIO_CONNECTED) && (hfpaudio_old == HFPAUDIO_DISCONNECTED))
+        if(bt_hfp_audio_changed())
         {
-          HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
-        }
-        else if((hfpaudio == HFPAUDIO_DISCONNECTED) && (hfpaudio_old == HFPAUDIO_CONNECTED))
-        {
-          HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13,
+              bt_hfp_get_audio() == HFPAUDIO_CONNECTED ? GPIO_PIN_SET : GPIO_PIN_RESET);
         }
       }
       break;
@@ -447,7 +252,7 @@ int main(void)
       break;
 
     case PHONE_INCOMING_CALL:
-      if((hfpstat != HFPSTAT_INCOMING_CALL) && (hfpaudio != HFPAUDIO_CONNECTED))
+      if((bt_hfp_get_stat() != HFPSTAT_INCOMING_CALL) && (bt_hfp_get_audio() != HFPAUDIO_CONNECTED))
       {
         stop_bell();
         phone_state = PHONE_IDLE;
@@ -489,10 +294,11 @@ int main(void)
       printf("state=%u\n", phone_state);
     }
 
-    if((phone_state == PHONE_IDLE) && (uart_buffer_pos == 0) && uart_done() && (hfpaudio == HFPAUDIO_DISCONNECTED))
+    if((phone_state == PHONE_IDLE) && bt_hfp_uart_done() && uart_debug_tx_done() &&
+       (bt_hfp_get_audio() == HFPAUDIO_DISCONNECTED))
     {
       puts("s");
-      while(!uart_done()) {}
+      while(!bt_hfp_uart_done() || !uart_debug_tx_done()) {}
       SET_BIT(RCC->CFGR, RCC_CFGR_STOPWUCK);
       HAL_UARTEx_EnableStopMode(&hlpuart1);
       HAL_SuspendTick();
