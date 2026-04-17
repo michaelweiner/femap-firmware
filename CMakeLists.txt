@@ -18,6 +18,7 @@ set(USER_SOURCES
     Core/Src/rotary.c
     Core/Src/uart_debug.c
     Core/Src/bt_hfp.c
+    Core/Src/phone_fsm.c
 )
 
 set(USER_HEADERS
@@ -26,6 +27,7 @@ set(USER_HEADERS
     Core/Inc/rotary.h
     Core/Inc/uart_debug.h
     Core/Inc/bt_hfp.h
+    Core/Inc/phone_fsm.h
 )
 
 # Define the build type

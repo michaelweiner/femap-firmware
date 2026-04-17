@@ -32,6 +32,7 @@
 #include "rotary.h"
 #include "uart_debug.h"
 #include "bt_hfp.h"
+#include "phone_fsm.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -74,9 +75,6 @@ DMA_HandleTypeDef hdma_tim1_ch3;
 #define MP2722_REGISTERS 23
 uint8_t i2c_buffer[MP2722_REGISTERS];
 
-enum phone_state_t { PHONE_IDLE, PHONE_DIALTONE, PHONE_ACTIVE_CALL, PHONE_INCOMING_CALL, PHONE_ERROR };
-
-enum phone_state_t phone_state = PHONE_IDLE;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -164,6 +162,7 @@ int main(void)
 
   HAL_GPIO_WritePin(VOICE_EN_GPIO_Port, VOICE_EN_Pin, GPIO_PIN_RESET);
   bt_hfp_init(&hlpuart1, &huart2);
+  phone_fsm_init(&hlpuart1);
 
   HAL_I2C_Master_Transmit(&hi2c2, 0x03f<<1, (uint8_t*)"\x00", 1, 1000);
   HAL_I2C_Master_Receive(&hi2c2, 0x3f<<1, i2c_buffer, MP2722_REGISTERS, 1000);
@@ -179,134 +178,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while(1)
   {
-    GPIO_PinState pin_gu = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_3);
-    bt_hfp_process();
-    enum phone_state_t old_phone_state = phone_state;
-    switch(phone_state)
-    {
-    case PHONE_IDLE:
-      if(pin_gu == GPIO_PIN_SET)
-      {
-        if(bt_hfp_get_stat() == HFPSTAT_CONNECTED)
-        {
-          start_dialtone(DIALTONE_DEFAULT);
-          phone_state = PHONE_DIALTONE;
-        }
-        else if(bt_hfp_get_stat() == HFPSTAT_OUTGOING_CALL || bt_hfp_get_stat() == HFPSTAT_ACTIVE_CALL)
-        {
-          HAL_GPIO_WritePin(VOICE_EN_GPIO_Port, VOICE_EN_Pin, GPIO_PIN_SET);
-          phone_state = PHONE_ACTIVE_CALL;
-        }
-        else
-        {
-          start_dialtone(DIALTONE_GASSENBESETZTTON);
-          phone_state = PHONE_ERROR;
-        }
-      }
-      else if(bt_hfp_get_stat() == HFPSTAT_INCOMING_CALL)
-      {
-        start_bell();
-        phone_state = PHONE_INCOMING_CALL;
-      }
-      else
-      {
-        if(bt_hfp_audio_changed())
-        {
-          HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13,
-              bt_hfp_get_audio() == HFPAUDIO_CONNECTED ? GPIO_PIN_SET : GPIO_PIN_RESET);
-        }
-      }
-      break;
-
-    case PHONE_DIALTONE:
-      if(pin_gu == GPIO_PIN_RESET)
-      {
-        stop_dialtone();
-        phone_state = PHONE_IDLE;
-      }
-      else if(HAL_GPIO_ReadPin(nsa_GPIO_Port, nsa_Pin) == GPIO_PIN_SET)
-      {
-        size_t num_len;
-        uint8_t number[100] = {0};
-        char command[113];
-        stop_dialtone();
-        num_len = sizeof(number)-1;
-
-        read_rotary(number, &num_len);
-        count_to_ascii(number, num_len);
-        iprintf("dialed=%s\n", number);
-        siprintf(command, "AT+HFPDIAL=%s\r\n", number);
-        /* check again if Gabelumschalter is still active */
-        pin_gu = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_3);
-        if(pin_gu == GPIO_PIN_SET && num_len > 0)
-        {
-          HAL_UART_Transmit(&hlpuart1, (const uint8_t*)command, strlen(command), 100);
-          HAL_GPIO_WritePin(VOICE_EN_GPIO_Port, VOICE_EN_Pin, GPIO_PIN_SET);
-          phone_state = PHONE_ACTIVE_CALL;
-        }
-        else
-        {
-          phone_state = PHONE_IDLE;
-        }
-      }
-      break;
-
-    case PHONE_INCOMING_CALL:
-      if((bt_hfp_get_stat() != HFPSTAT_INCOMING_CALL) && (bt_hfp_get_audio() != HFPAUDIO_CONNECTED))
-      {
-        stop_bell();
-        phone_state = PHONE_IDLE;
-      }
-      else if(pin_gu == GPIO_PIN_SET)
-      {
-        uint8_t command[] = "AT+HFPANSW\r\n";
-        stop_bell();
-        HAL_UART_Transmit(&hlpuart1, command, strlen((const char*)command), 100);
-        HAL_Delay(100);
-        HAL_GPIO_WritePin(VOICE_EN_GPIO_Port, VOICE_EN_Pin, GPIO_PIN_SET);
-        phone_state = PHONE_ACTIVE_CALL;
-      }
-      break;
-
-    case PHONE_ACTIVE_CALL:
-      if(pin_gu == GPIO_PIN_RESET)
-      {
-        uint8_t command[] = "AT+HFPCHUP\r\n";
-        HAL_UART_Transmit(&hlpuart1, command, strlen((const char*)command), 100);
-        HAL_GPIO_WritePin(VOICE_EN_GPIO_Port, VOICE_EN_Pin, GPIO_PIN_RESET);
-        phone_state = PHONE_IDLE;
-      }
-      break;
-
-    case PHONE_ERROR:
-      if(pin_gu == GPIO_PIN_RESET)
-      {
-        stop_dialtone();
-        phone_state = PHONE_IDLE;
-      }
-      break;
-
-    default:
-      break;
-    }
-    if(old_phone_state != phone_state)
-    {
-      iprintf("state=%u\n", phone_state);
-    }
-
-    if((phone_state == PHONE_IDLE) && bt_hfp_uart_done() && uart_debug_tx_done() &&
-       (bt_hfp_get_audio() == HFPAUDIO_DISCONNECTED))
-    {
-      puts("s");
-      while(!bt_hfp_uart_done() || !uart_debug_tx_done()) {}
-      SET_BIT(RCC->CFGR, RCC_CFGR_STOPWUCK);
-      HAL_UARTEx_EnableStopMode(&hlpuart1);
-      HAL_SuspendTick();
-      HAL_PWREx_EnterSTOP0Mode(PWR_STOPENTRY_WFI);
-      HAL_ResumeTick();
-      HAL_UARTEx_DisableStopMode(&hlpuart1);
-      puts("w");
-    }
+    phone_fsm_process();
   }
     /* USER CODE END WHILE */
 
