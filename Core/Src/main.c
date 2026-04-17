@@ -230,7 +230,7 @@ int main(void)
         uint8_t number[100] = {0};
         char command[113];
         stop_dialtone();
-        num_len = 100;
+        num_len = sizeof(number)-1;
 
         read_rotary(number, &num_len);
         count_to_ascii(number, num_len);
