@@ -15,11 +15,13 @@ set(CMAKE_C_EXTENSIONS ON)
 set(USER_SOURCES
     Core/Src/ringer.c
     Core/Src/tone.c
+    Core/Src/rotary.c
 )
 
 set(USER_HEADERS
     Core/Inc/ringer.h
     Core/Inc/tone.h
+    Core/Inc/rotary.h
 )
 
 # Define the build type
