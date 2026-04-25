@@ -85,6 +85,28 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     # Add user defined libraries
 )
 
+# Find the st-flash executable
+find_program(ST_FLASH_EXE st-flash)
+
+if(ST_FLASH_EXE)
+  message(STATUS "Found st-flash at ${ST_FLASH_EXE}")
+  add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_OBJCOPY} -O binary
+            $<TARGET_FILE:${CMAKE_PROJECT_NAME}>
+            ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.bin
+    COMMENT "Generating .bin from ELF"
+  )
+  add_custom_target(flash
+    COMMAND ${ST_FLASH_EXE} --connect-under-reset write
+            ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.bin 0x08000000
+    DEPENDS ${CMAKE_PROJECT_NAME}
+    COMMENT "Flashing ${CMAKE_PROJECT_NAME}.bin to STM32..."
+  )
+  message(STATUS "Added 'flash' target")
+else()
+  message(WARNING "st-flash not found - flash target unavailable")
+endif()
+
 # Find the clang-format executable
 find_program(CLANG_FORMAT_EXE clang-format)
 
