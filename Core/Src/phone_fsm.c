@@ -155,6 +155,21 @@ void phone_fsm_process(void)
             HAL_GPIO_WritePin(VOICE_EN_GPIO_Port, VOICE_EN_Pin, GPIO_PIN_RESET);
             phone_state = PHONE_AUDIO_DISCONNECTED_FROM_CALL;
         }
+        else if (HAL_GPIO_ReadPin(nsa_GPIO_Port, nsa_Pin) == GPIO_PIN_SET)
+        {
+            size_t num_len = 1;
+            uint8_t digit = 0;
+            char command[15];
+
+            if (read_rotary(&digit, &num_len) && (num_len == 1))
+            {
+                count_to_ascii(&digit, 1);
+                iprintf("dtmf=%c\n", digit);
+                siprintf(command, "AT+HFPDTMF=%c\r\n", digit);
+                HAL_UART_Transmit(huart_at, (const uint8_t *)command,
+                                  strlen(command), 100);
+            }
+        }
         break;
 
     case PHONE_AUDIO_DISCONNECTED_FROM_CALL:

@@ -31,11 +31,12 @@ int read_rotary(uint8_t *pau8Digit, size_t *len)
             if ((pos < 0) || (timer_value > 200))
             {
                 ++pos;
-                if (pos >= max_len)
+                if ((size_t)pos >= max_len)
                 {
-                    /* buffer overflow */
+                    /* next digit would not fit, return what we have */
                     HAL_TIM_PWM_Stop(htim_rotary, TIM_CHANNEL_1);
-                    return 0;
+                    *len = pos;
+                    return 1;
                 }
             }
             ++pau8Digit[pos];
@@ -52,8 +53,18 @@ int read_rotary(uint8_t *pau8Digit, size_t *len)
         }
         else
         {
-            if ((htim_rotary->Instance->CNT > 3000) &&
-                (HAL_GPIO_ReadPin(nsa_GPIO_Port, nsa_Pin) != GPIO_PIN_SET))
+            int dial_at_rest =
+                (HAL_GPIO_ReadPin(nsa_GPIO_Port, nsa_Pin) != GPIO_PIN_SET);
+
+            if (((size_t)(pos + 1) >= max_len) &&
+                (htim_rotary->Instance->CNT > 200) && dial_at_rest)
+            {
+                /* buffer full and dial settled, return without waiting */
+                HAL_TIM_PWM_Stop(htim_rotary, TIM_CHANNEL_1);
+                *len = (pos + 1);
+                return 1;
+            }
+            else if ((htim_rotary->Instance->CNT > 3000) && dial_at_rest)
             {
                 HAL_TIM_PWM_Stop(htim_rotary, TIM_CHANNEL_1);
                 /* good case timeout, dial */
