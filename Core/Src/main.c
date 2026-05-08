@@ -29,6 +29,7 @@
 
 #include "ringer.h"
 #include "tone.h"
+#include "easteregg.h"
 #include "rotary.h"
 #include "uart_debug.h"
 #include "bt_hfp.h"
@@ -157,6 +158,7 @@ int main(void)
    * TIM4: for DAC samples
    */
   init_dialtone(&htim3, &htim4, &hdac1, &hopamp2);
+  init_easteregg(&htim4, &hdac1, &hopamp2);
   /* TIM15: pulse timing for rotary dial */
   init_rotary(&htim15);
 

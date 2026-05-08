@@ -15,6 +15,8 @@ set(CMAKE_C_EXTENSIONS ON)
 set(USER_SOURCES
     Core/Src/ringer.c
     Core/Src/tone.c
+    Core/Src/easteregg.c
+    Core/Src/easteregg_samples.c
     Core/Src/rotary.c
     Core/Src/uart_debug.c
     Core/Src/bt_hfp.c
@@ -24,6 +26,8 @@ set(USER_SOURCES
 set(USER_HEADERS
     Core/Inc/ringer.h
     Core/Inc/tone.h
+    Core/Inc/easteregg.h
+    Core/Inc/easteregg_samples.h
     Core/Inc/rotary.h
     Core/Inc/uart_debug.h
     Core/Inc/bt_hfp.h

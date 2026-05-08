@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "bt_hfp.h"
+#include "easteregg.h"
 #include "main.h"
 #include "ringer.h"
 #include "rotary.h"
@@ -17,6 +18,7 @@ enum phone_state_t
     PHONE_ACTIVE_CALL,
     PHONE_INCOMING_CALL,
     PHONE_AUDIO_DISCONNECTED_FROM_CALL,
+    PHONE_KEIN_ANSCHLUSS,
     PHONE_ERROR
 };
 
@@ -101,11 +103,19 @@ void phone_fsm_process(void)
             pin_gu = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_3);
             if (pin_gu == GPIO_PIN_SET && num_len > 0)
             {
-                HAL_UART_Transmit(huart_at, (const uint8_t *)command,
-                                  strlen(command), 100);
-                HAL_GPIO_WritePin(VOICE_EN_GPIO_Port, VOICE_EN_Pin,
-                                  GPIO_PIN_SET);
-                phone_state = PHONE_ACTIVE_CALL;
+                if (memcmp((const char *)number, "03023125", 8) == 0)
+                {
+                    start_easteregg();
+                    phone_state = PHONE_KEIN_ANSCHLUSS;
+                }
+                else
+                {
+                    HAL_UART_Transmit(huart_at, (const uint8_t *)command,
+                                      strlen(command), 100);
+                    HAL_GPIO_WritePin(VOICE_EN_GPIO_Port, VOICE_EN_Pin,
+                                      GPIO_PIN_SET);
+                    phone_state = PHONE_ACTIVE_CALL;
+                }
             }
             else
             {
@@ -174,13 +184,21 @@ void phone_fsm_process(void)
 
     case PHONE_AUDIO_DISCONNECTED_FROM_CALL:
         if ((audio_state == HFPAUDIO_CONNECTED) &&
-            (hfp_state == HFPSTAT_ACTIVE_CALL))
+            (hfp_state == HFPSTAT_ACTIVE_CALL || hfp_state == HFPSTAT_OUTGOING_CALL))
         {
             HAL_GPIO_WritePin(VOICE_EN_GPIO_Port, VOICE_EN_Pin, GPIO_PIN_SET);
             phone_state = PHONE_ACTIVE_CALL;
         }
         else if (pin_gu == GPIO_PIN_RESET)
         {
+            phone_state = PHONE_IDLE;
+        }
+        break;
+
+    case PHONE_KEIN_ANSCHLUSS:
+        if (pin_gu == GPIO_PIN_RESET)
+        {
+            stop_easteregg();
             phone_state = PHONE_IDLE;
         }
         break;
