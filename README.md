@@ -8,6 +8,7 @@ This is the firmware for the Fernsprechmobilapparat project presented at the 39t
 - [ARM GNU Toolchain](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads) (arm-none-eabi-gcc, includes binutils)
 - arm-none-eabi-newlib - lightweight C standard library for embedded targets
 - [stlink](https://github.com/stlink-org/stlink) - provides st-flash for programming the device
+- [STM32CubeMX](https://www.st.com/en/development-tools/stm32cubemx.html) - configures STM32 peripherals (optional)
 
 On Arch Linux:
 ```
